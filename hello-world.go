@@ -2,12 +2,18 @@ package main
 
 /*
 solver for this kinda game - SKYLINE SAVIOUR / HIMMELSRETTER - https://www.puzzlescript.net/editor.html?hack=d2d091063e73a44796628e2b12d09989 (not final link)
+
+usage - eg
+
+go run hello-world.go -Breite=25 -Höhe=25 -Große=80 -Explosionen=2 -Versuche=10000 -jeder=100
 */
 
 import (
 	"flag"
 	"fmt"
+	"math"
 	"math/rand"
+	"os"
 	"sort"
 	"time"
 )
@@ -224,11 +230,11 @@ func bauRaster(b int, h int, größe int) [][]uint8 {
 	for punkteZahl < größe {
 		var rx int
 		if randrangeI(0, 1) == 0 {
-			rx = randrangeI(minx, mitte)
+			rx = randrangeI(minx, randrangeI(minx, mitte))
 		} else {
-			rx = randrangeI(mitte, maxx)
+			rx = randrangeI(randrangeI(mitte, maxx), maxx)
 		}
-		ry := randrangeI(miny, h-1)
+		ry := randrangeI(miny, randrangeI(miny, h-1))
 
 		if raster[rx][ry] != 0 {
 			continue
@@ -360,7 +366,7 @@ func losRaster(b int, h int, raster [][]uint8, bleibendezüge int, scores []int)
 func nichtnullkleinste(ar []int) int {
 	min := ar[0]
 	for i := 1; i < len(ar); i++ {
-		if ar[i] != 0 && ar[i] < min || min == 0 {
+		if (ar[i] != 0) && (ar[i] < min || min == 0) {
 			min = ar[i]
 		}
 	}
@@ -382,13 +388,43 @@ func ratio(ar []int) float64 {
 	return float64(k) / float64(s)
 }
 
-func rechtste(ar []int) int {
+func durchschnitt(ar []int) float64 {
+	result := float64(ar[0])
+	for i := 1; i < len(ar); i++ {
+		result += float64(i * ar[i])
+	}
+	result /= float64(summe(ar))
+	return result
+}
+func standardabweichung(ar []int) float64 {
+	ds := durchschnitt(ar)
+	stdab := float64(0)
+	for i := 0; i < len(ar); i++ {
+		delta := float64(i) - ds
+		stdab += float64(ar[i]) * delta * delta
+	}
+	stdab /= float64(summe(ar))
+	return math.Sqrt(stdab)
+
+}
+
+func rechtsterIndex(ar []int) int {
 	for i := len(ar) - 1; i >= 0; i-- {
 		if ar[i] != 0 {
 			return i
 		}
 	}
 	return -1
+}
+
+func einmaligScore(ar []int) float64 {
+	var ri = rechtsterIndex(ar)
+	if ri == -1 {
+		return 100000000
+	}
+	fmt.Println(ri)
+	var r = ar[ri]
+	return float64(r) + ratio(ar)
 }
 
 func prettyPrint(b int, h int, raster [][]uint8, explosionen int, himmelhöhe int) string {
@@ -448,6 +484,7 @@ type lösungsstruct struct {
 	explosionen int
 	himmelhöhe  int
 	ratio       float64
+	stdab       float64
 }
 
 func machwas(b int, h int, g int, explosionen int) lösungsstruct {
@@ -462,7 +499,8 @@ func machwas(b int, h int, g int, explosionen int) lösungsstruct {
 	losRaster(b, h, raster, explosionen, scores)
 
 	r := ratio(scores)
-	himmelhöhe := rechtste(scores)
+	stdab := standardabweichung(scores)
+	himmelhöhe := rechtsterIndex(scores)
 
 	return lösungsstruct{
 		b:           b,
@@ -472,13 +510,21 @@ func machwas(b int, h int, g int, explosionen int) lösungsstruct {
 		himmelhöhe:  himmelhöhe,
 		explosionen: explosionen,
 		ratio:       r,
+		stdab:       stdab,
 	}
 }
 
-func prettyPrintVersuch(ls lösungsstruct) {
+func prettyPrintVersuch(ls lösungsstruct, sortieren *string) {
 
 	fmt.Println()
-	fmt.Println(ls.ratio)
+
+	fmt.Println(*sortieren)
+	if *sortieren == "vhlt" {
+		fmt.Println(ls.ratio)
+	} else if *sortieren == "stdab" {
+		fmt.Println(ls.stdab)
+	}
+
 	fmt.Println()
 	fmt.Println(ls.scores)
 	fmt.Println()
@@ -498,11 +544,15 @@ func main() {
 	jederp := flag.Int("jeder", 1000, "jeder")
 	explosionen := flag.Int("Explosionen", 3, "Explosionen")
 	versuche := flag.Int("Versuche", 100, "Versuchen")
+	sortieren := flag.String("Sortieren", "vhlt", "Sortieren (entweder vhlt oder stdab)")
 	flag.Parse()
-
+	if *sortieren != "vhlt" && *sortieren != "stdab" && *sortieren != "einmalig" {
+		fmt.Printf("Gegebene Sortierungsweise %s gilt nicht - muss entweder \"vhlt\", \"einmalig\", oder \"stdab\" sein.\n", *sortieren)
+		os.Exit(3)
+	}
 	lösungen := make([]lösungsstruct, 0)
 
-	fmt.Printf("Breite=%d Höhe=%d Große=%d Explosionen=%d Versuche=%d\n", *b, *h, *g, *explosionen, *versuche)
+	fmt.Printf("Breite=%d Höhe=%d Große=%d Explosionen=%d Versuche=%d Sortieren=%s\n", *b, *h, *g, *explosionen, *versuche, *sortieren)
 
 	jeder := *jederp
 	var max = *versuche
@@ -515,9 +565,22 @@ func main() {
 		}
 	}
 
-	sort.Slice(lösungen, func(i, j int) bool {
-		return lösungen[i].ratio > lösungen[j].ratio
-	})
+	if *sortieren == "vhlt" {
+		sort.Slice(lösungen, func(i, j int) bool {
+			return lösungen[i].ratio > lösungen[j].ratio
+		})
+	} else if *sortieren == "stdab" {
+		sort.Slice(lösungen, func(i, j int) bool {
+			return lösungen[i].stdab < lösungen[j].stdab
+		})
+	} else if *sortieren == "einmalig" {
+		sort.Slice(lösungen, func(i, j int) bool {
+			si := einmaligScore(lösungen[i].scores)
+			sj := einmaligScore(lösungen[j].scores)
+
+			return si > sj
+		})
+	}
 
 	lmin := len(lösungen) - 6
 	lmax := len(lösungen) - 1
@@ -527,6 +590,8 @@ func main() {
 
 	for i := lmin; i <= lmax; i++ {
 		lösung := lösungen[i]
-		prettyPrintVersuch(lösung)
+		prettyPrintVersuch(lösung, sortieren)
 	}
+
+	fmt.Print("\a")
 }
