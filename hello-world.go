@@ -382,7 +382,7 @@ func summe(ar []int) int {
 }
 
 func ratio(ar []int) float64 {
-	k := nichtnullkleinste(ar)
+	k := ar[rechtsterIndex(ar)]
 	s := summe(ar)
 
 	return float64(k) / float64(s)
