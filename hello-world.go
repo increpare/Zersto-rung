@@ -1,7 +1,7 @@
 package main
 
 /*
-solver for this kinda game - SKYLINE SAVIOUR / HIMMELSRETTER - https://www.puzzlescript.net/editor.html?hack=d2d091063e73a44796628e2b12d09989 (not final link)
+Macht Levels für A CLEAR VIEW OF THE SKY - https://www.puzzlescript.net/play.html?p=b6020a515c32a33ad309fbd5a63f3588
 
 usage - eg
 
